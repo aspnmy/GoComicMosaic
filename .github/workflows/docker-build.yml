@@ -27,19 +27,27 @@ jobs:
           buildah --version
 
       # 登录所有容器仓库
-      - name: 登录Docker Hub
+      - name: 登录容器仓库
         run: |
+          # 登录Docker Hub
+          echo "正在登录Docker Hub..."
           echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | buildah login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin docker.io
+          echo "✅ Docker Hub登录成功"
           
           # 登录GitHub Container Registry
+          echo "正在登录GitHub Container Registry..."
           echo "${{ secrets.GHCR_PUSH_TOKEN }}" | buildah login -u "${{ secrets.GHCR_NAME }}" --password-stdin ghcr.io
+          echo "✅ GitHub Container Registry登录成功"
           
           # 登录git.t2be.cn
+          echo "正在登录git.t2be.cn..."
           echo "${{ secrets.GIT2BE_PUSH_TOKEN }}" | buildah login -u "${{ secrets.GIT2BE_NAME }}" --password-stdin git.t2be.cn
+          echo "✅ git.t2be.cn登录成功"
           
           # 登录ph.nas.t2be.cn
+          echo "正在登录ph.nas.t2be.cn..."
           echo "${{ secrets.PH147_PUSH_TOKEN }}" | buildah login -u "${{ secrets.PH47_NAME }}" --password-stdin ph.nas.t2be.cn
-          echo "✅ 已成功登录所有容器仓库"
+          echo "✅ ph.nas.t2be.cn登录成功"
 
       # 读取版本号用于镜像标签
       - name: 读取版本号
