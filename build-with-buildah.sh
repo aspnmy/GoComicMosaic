@@ -61,9 +61,26 @@ buildah run $backend_container -- sh -c 'mkdir -p ./output && export CGO_ENABLED
 # 复制并重命名WebP工具
 buildah run $backend_container sh -c 'if [ -f "./output/app_webp" ]; then cp ./output/app_webp ./output/webp_converter; fi'
 
+# 根据启动脚本确定使用的基础镜像
+echo "确定使用的基础镜像..."
+if [[ "$START_SCRIPT_FILENAME" == *"caddy"* ]]; then
+  BASE_IMAGE="docker.io/library/caddy:builder-alpine"
+  WEB_SERVER_TYPE="caddy"
+  echo "使用Caddy基础镜像: $BASE_IMAGE"
+elif [[ "$START_SCRIPT_FILENAME" == *"nginx"* ]] || [[ "$START_SCRIPT_FILENAME" == "start.sh" ]]; then
+  BASE_IMAGE="docker.io/library/nginx:alpine-perl"
+  WEB_SERVER_TYPE="nginx"
+  echo "使用Nginx基础镜像: $BASE_IMAGE"
+else
+  # 默认为Nginx
+  BASE_IMAGE="docker.io/library/nginx:alpine-perl"
+  WEB_SERVER_TYPE="nginx"
+  echo "未识别启动脚本类型，默认使用Nginx基础镜像: $BASE_IMAGE"
+fi
+
 # 创建最终容器
 echo "创建最终容器..."
-final_container=$(buildah from --name $CONTAINER_NAME docker.io/library/nginx:alpine-perl)
+final_container=$(buildah from --name $CONTAINER_NAME $BASE_IMAGE)
 buildah config --workingdir /app $final_container
 
 # 安装运行时依赖
@@ -90,7 +107,17 @@ buildah copy $final_container "$START_SCRIPT_PATH" /app/
 buildah run $final_container chmod +x /app/$START_SCRIPT_FILENAME
 
 # 创建必要的目录
-buildah run $final_container mkdir -p /app/data /app/data/imgs /app/data/uploads /app/data/nginx /app/data/ssl
+echo "创建必要的目录..."
+buildah run $final_container mkdir -p /app/data /app/data/imgs /app/data/uploads
+
+# 根据Web服务器类型创建特定目录
+if [[ "$WEB_SERVER_TYPE" == "nginx" ]]; then
+  buildah run $final_container mkdir -p /app/data/nginx /app/data/ssl
+  echo "创建Nginx特定目录"
+elif [[ "$WEB_SERVER_TYPE" == "caddy" ]]; then
+  buildah run $final_container mkdir -p /app/data/caddy /app/data/ssl
+  echo "创建Caddy特定目录"
+fi
 
 # 配置端口
 buildah config --port 80 --port 443 $final_container

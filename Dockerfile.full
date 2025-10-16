@@ -61,7 +61,7 @@ ARG WEB_SERVER=nginx
 # 第三阶段：创建最终镜像
 # 根据参数选择不同的Web服务器基础镜像
 FROM ${WEB_SERVER}:alpine-perl AS nginx-final
-FROM caddy:alpine AS caddy-final
+FROM caddy:builder-alpine AS caddy-final
 
 # 使用多阶段构建的技巧选择正确的基础镜像
 FROM ${WEB_SERVER}-final

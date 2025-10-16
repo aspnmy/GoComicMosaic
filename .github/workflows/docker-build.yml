@@ -141,7 +141,20 @@ jobs:
           
           # 运行buildah构建脚本并指定启动脚本
           NGINX_IMAGE_NAME="gocomicmosaic:nginx-latest"
-          ./build-with-buildah.sh "${NGINX_IMAGE_NAME}" "./tmp-build/nginx/start.sh"
+          echo "开始构建: ${NGINX_IMAGE_NAME} 使用启动脚本: ./tmp-build/nginx/start.sh"
+          # 添加错误检查
+          if ! ./build-with-buildah.sh "${NGINX_IMAGE_NAME}" "./tmp-build/nginx/start.sh"; then
+            echo "❌ Nginx版本镜像构建失败!"
+            exit 1
+          fi
+          
+          # 验证镜像是否成功创建
+          if ! buildah images | grep -q "${NGINX_IMAGE_NAME}"; then
+            echo "❌ 镜像 ${NGINX_IMAGE_NAME} 未成功创建!"
+            buildah images
+            exit 1
+          fi
+          echo "✅ Nginx版本镜像构建成功: ${NGINX_IMAGE_NAME}"
           
           # 构建Caddy版本镜像
           echo "构建Caddy版本镜像..."
@@ -151,13 +164,37 @@ jobs:
           
           # 运行buildah构建脚本并指定启动脚本
           CADDY_IMAGE_NAME="gocomicmosaic:caddy-latest"
-          ./build-with-buildah.sh "${CADDY_IMAGE_NAME}" "./tmp-build/caddy/start-caddy.sh"
+          echo "开始构建: ${CADDY_IMAGE_NAME} 使用启动脚本: ./tmp-build/caddy/start-caddy.sh"
+          # 添加错误检查
+          if ! ./build-with-buildah.sh "${CADDY_IMAGE_NAME}" "./tmp-build/caddy/start-caddy.sh"; then
+            echo "❌ Caddy版本镜像构建失败!"
+            exit 1
+          fi
+          
+          # 验证镜像是否成功创建
+          if ! buildah images | grep -q "${CADDY_IMAGE_NAME}"; then
+            echo "❌ 镜像 ${CADDY_IMAGE_NAME} 未成功创建!"
+            buildah images
+            exit 1
+          fi
+          echo "✅ Caddy版本镜像构建成功: ${CADDY_IMAGE_NAME}"
           
           # 为Nginx版本镜像添加标签
           echo "为Nginx版本镜像添加标签: $DOCKER_HUB_REPO:$NGINX_IMAGE_TAG"
-          buildah tag $NGINX_IMAGE_NAME $DOCKER_HUB_REPO:$NGINX_IMAGE_TAG
-          buildah tag $NGINX_IMAGE_NAME $GHCR_REPO:$NGINX_IMAGE_TAG
-          buildah tag $NGINX_IMAGE_NAME $GIT2BE_REPO:$NGINX_IMAGE_TAG
+          # 添加错误检查
+          if ! buildah tag $NGINX_IMAGE_NAME $DOCKER_HUB_REPO:$NGINX_IMAGE_TAG; then
+            echo "❌ 为Nginx版本镜像添加Docker Hub标签失败!"
+            exit 1
+          fi
+          if ! buildah tag $NGINX_IMAGE_NAME $GHCR_REPO:$NGINX_IMAGE_TAG; then
+            echo "❌ 为Nginx版本镜像添加GHCR标签失败!"
+            exit 1
+          fi
+          if ! buildah tag $NGINX_IMAGE_NAME $GIT2BE_REPO:$NGINX_IMAGE_TAG; then
+            echo "❌ 为Nginx版本镜像添加git.t2be.cn标签失败!"
+            exit 1
+          fi
+          echo "✅ Nginx版本镜像标签添加成功"
           
           # 为Caddy版本镜像添加标签
           echo "为Caddy版本镜像添加标签: $DOCKER_HUB_REPO:$CADDY_IMAGE_TAG"
@@ -167,12 +204,22 @@ jobs:
           
           # 为Docker Hub添加latest标签（默认为Nginx版本）
           echo "添加Docker Hub latest标签（指向Nginx版本）: $DOCKER_HUB_REPO:latest"
-          buildah tag $NGINX_IMAGE_NAME $DOCKER_HUB_REPO:latest
+          if ! buildah tag $NGINX_IMAGE_NAME $DOCKER_HUB_REPO:latest; then
+            echo "❌ 添加Docker Hub latest标签失败!"
+            exit 1
+          fi
           
           # 为Docker Hub添加特定的nginx-latest和caddy-latest标签
           echo "添加特定的最新版本标签"
-          buildah tag $NGINX_IMAGE_NAME $DOCKER_HUB_REPO:nginx-latest
-          buildah tag $CADDY_IMAGE_NAME $DOCKER_HUB_REPO:caddy-latest
+          if ! buildah tag $NGINX_IMAGE_NAME $DOCKER_HUB_REPO:nginx-latest; then
+            echo "❌ 添加nginx-latest标签失败!"
+            exit 1
+          fi
+          if ! buildah tag $CADDY_IMAGE_NAME $DOCKER_HUB_REPO:caddy-latest; then
+            echo "❌ 添加caddy-latest标签失败!"
+            exit 1
+          fi
+          echo "✅ 所有最新版本标签添加成功"
           
           # 保存标签信息供后续步骤使用
           echo "NGINX_IMAGE_TAG=$NGINX_IMAGE_TAG" >> $GITHUB_ENV
