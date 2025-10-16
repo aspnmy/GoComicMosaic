@@ -1,10 +1,6 @@
 # GoComicMosaic
 一款开源影视资源共建平台，不同用户可以自由提交资源信息(标题、类型、简介、图片、资源链接)，像马赛克一样，由多方贡献拼凑成完整资源。 集成网盘搜索、分季分集剧集信息查看、在线点播(支持采集解析和自定义爬虫)等功能
 
-正式上线地址：https://dm.xueximeng.com/  
-
-Demo演示：https://demo.xueximeng.com/  
-管理员账号：admin / admin123  
 
 如果喜欢，点个star  
 
