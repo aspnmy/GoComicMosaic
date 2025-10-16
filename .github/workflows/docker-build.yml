@@ -26,8 +26,43 @@ jobs:
           sudo apt-get install -y buildah
           buildah --version
 
+      # 检查修改的文件，决定是否需要构建
+      - name: 检查修改的文件
+        id: check_files
+        run: |
+          # 获取修改的文件列表
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # 获取此次推送中修改的文件列表
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # 获取PR中修改的文件列表
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+          fi
+          
+          # 输出修改的文件
+          echo "修改的文件: $CHANGED_FILES"
+          
+          # 检查是否只修改了docker-build.yml文件
+          ONLY_WORKFLOW_CHANGED=true
+          for file in $CHANGED_FILES; do
+            if [[ "$file" != ".github/workflows/docker-build.yml" ]]; then
+              ONLY_WORKFLOW_CHANGED=false
+              break
+            fi
+          done
+          
+          # 设置输出变量
+          if [[ "$ONLY_WORKFLOW_CHANGED" == "true" ]] && [[ ! -z "$CHANGED_FILES" ]]; then
+            echo "仅修改了workflow文件，不需要构建镜像"
+            echo "need_build=false" >> $GITHUB_OUTPUT
+          else
+            echo "需要构建镜像"
+            echo "need_build=true" >> $GITHUB_OUTPUT
+          fi
+
       # 登录所有容器仓库
       - name: 登录容器仓库
+        if: steps.check_files.outputs.need_build == 'true'
         run: |
           # 登录Docker Hub
           echo "正在登录Docker Hub..."
@@ -68,6 +103,7 @@ jobs:
 
       # 读取版本号用于镜像标签
       - name: 读取版本号
+        if: steps.check_files.outputs.need_build == 'true'
         id: version
         run: |
           VERSION=$(cat version.txt | tr -d '[:space:]')
@@ -80,6 +116,7 @@ jobs:
 
       # 构建并推送容器镜像
       - name: 使用buildah构建镜像
+        if: steps.check_files.outputs.need_build == 'true'
         run: |
           # 确保构建脚本有执行权限
           chmod +x ./build-with-buildah.sh
@@ -125,6 +162,7 @@ jobs:
 
       # 推送镜像到所有容器仓库
       - name: 推送镜像到所有容器仓库
+        if: steps.check_files.outputs.need_build == 'true'
         run: |
           VERSION_TAG="${VERSION_TAG}"
           
@@ -205,7 +243,7 @@ jobs:
 
       # 更新版本号、创建tag和GitHub Release
       - name: 更新版本号、创建tag和GitHub Release
-        if: success() && github.ref == 'refs/heads/main'
+        if: steps.check_files.outputs.need_build == 'true' && success() && github.ref == 'refs/heads/main'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -307,7 +345,7 @@ jobs:
 
       # 构建完成后的通知
       - name: 构建完成通知
-        if: success()
+        if: steps.check_files.outputs.need_build == 'true' && success()
         run: |
           VERSION=$(cat version.txt | tr -d '[:space:]')
           IMAGE_TAG="${VERSION}-alpine-sts"
@@ -335,7 +373,7 @@ jobs:
 
       # 构建失败时的故障排除信息
       - name: 构建失败故障排除
-        if: failure()
+        if: steps.check_files.outputs.need_build == 'true' && failure()
         run: |
           echo "❌ 容器镜像构建失败！"
           echo "💡 故障排除提示："
