@@ -150,7 +150,7 @@ jobs:
             echo "⚠️ GitHub Container Registry登录失败，跳过推送"
           else
             # 为GHCR推送操作添加超时保护
-            timeout 30s push_image "${GHCR_REPO}" "$VERSION_TAG" "GitHub Container Registry"
+            timeout 30s bash -c "set +e; push_image \"${GHCR_REPO}\" \"$VERSION_TAG\" \"GitHub Container Registry\"; exit $?"
             PUSH_EXIT_CODE=$?
             
             if [ $PUSH_EXIT_CODE -eq 124 ]; then
@@ -174,7 +174,7 @@ jobs:
             if [ $CURL_EXIT_CODE -eq 0 ] && [ "$HTTP_STATUS" -eq 200 ]; then
               echo "✅ git.t2be.cn仓库可用且响应正常，准备推送镜像"
               # 为推送操作也添加超时保护
-              timeout 30s push_image "${GIT2BE_REPO}" "$VERSION_TAG" "git.t2be.cn"
+              timeout 30s bash -c "set +e; push_image \"${GIT2BE_REPO}\" \"$VERSION_TAG\" \"git.t2be.cn\"; exit $?"
               PUSH_EXIT_CODE=$?
               
               if [ $PUSH_EXIT_CODE -eq 124 ]; then
@@ -272,9 +272,23 @@ jobs:
           # 注意：GITHUB_TOKEN已在环境变量中设置，gh命令会自动使用它
           echo "创建GitHub Release..."
           set +e  # 允许命令失败但继续执行
+          # 创建Release说明文本文件
+          cat > release-notes.md << EOF
+## 版本 $NEW_VERSION
+
+### 更新内容
+$CHANGELOG
+
+### 镜像信息
+- docker pull $DOCKER_HUB_IMAGE
+- docker pull $GHCR_IMAGE
+- 构建提交: ${{ github.sha }}
+EOF
+          
+          # 使用文件内容作为notes创建Release
           gh release create "$TAG_NAME" \
             --title "GoComicMosaic v$NEW_VERSION" \
-            --notes "## 版本 $NEW_VERSION\n\n### 更新内容\n$CHANGELOG\n\n### 镜像信息\n- Docker Hub: $DOCKER_HUB_IMAGE\n- GitHub Container Registry: $GHCR_IMAGE\n- 构建提交: ${{ github.sha }}\n\n### 快速拉取镜像\n```bash\n${GHCR_PULL_CMD}\n```" \
+            --notes-file release-notes.md \
             --prerelease=false
             
           # 检查命令是否成功
