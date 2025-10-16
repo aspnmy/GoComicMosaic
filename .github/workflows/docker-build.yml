@@ -129,8 +129,34 @@ jobs:
           # 推送镜像到各个仓库
           push_image "${DOCKER_HUB_REPO}" "$VERSION_TAG" "Docker Hub"
           push_image "${GHCR_REPO}" "$VERSION_TAG" "GitHub Container Registry"
-          push_image "${GIT2BE_REPO}" "$VERSION_TAG" "git.t2be.cn"
-          push_image "${PH_REPO}" "$VERSION_TAG" "ph.nas.t2be.cn"
+          
+          # 检查git.t2be.cn的健康状态，如果返回码不是200则跳过推送
+          echo "🔍 检查git.t2be.cn仓库健康状态..."
+          set +e  # 允许curl失败但继续执行
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://git.t2be.cn/v2/)
+          set -e
+          
+          echo "📊 git.t2be.cn返回状态码: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "✅ git.t2be.cn仓库可用，准备推送镜像"
+            push_image "${GIT2BE_REPO}" "$VERSION_TAG" "git.t2be.cn"
+          else
+            echo "⚠️ git.t2be.cn仓库不可用（返回码: $HTTP_STATUS），跳过推送"
+          fi
+          
+          # 检查ph.nas.t2be.cn的健康状态，如果返回码不是200则跳过推送
+          echo "🔍 检查ph.nas.t2be.cn仓库健康状态..."
+          set +e  # 允许curl失败但继续执行
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://ph.nas.t2be.cn/v2/)
+          set -e
+          
+          echo "📊 ph.nas.t2be.cn返回状态码: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "✅ ph.nas.t2be.cn仓库可用，准备推送镜像"
+            push_image "${PH_REPO}" "$VERSION_TAG" "ph.nas.t2be.cn"
+          else
+            echo "⚠️ ph.nas.t2be.cn仓库不可用（返回码: $HTTP_STATUS），跳过推送"
+          fi
           
           set -e  # 恢复错误退出模式
           echo "✅ 镜像推送流程完成"
@@ -205,13 +231,16 @@ jobs:
           GIT2BE_IMAGE="${GIT2BE_REPO}:${IMAGE_TAG}"
           PH_IMAGE="${PH_REPO}:${IMAGE_TAG}"
           
+          # 构建从ghcr.io拉取镜像的命令
+          GHCR_PULL_CMD="docker pull ${GHCR_IMAGE}"
+          
           # 直接使用环境变量进行认证和Release创建
           # 注意：GITHUB_TOKEN已在环境变量中设置，gh命令会自动使用它
           echo "创建GitHub Release..."
           set +e  # 允许命令失败但继续执行
           gh release create "$TAG_NAME" \
             --title "GoComicMosaic v$NEW_VERSION" \
-            --notes "## 版本 $NEW_VERSION\n\n### 更新内容\n$CHANGELOG\n\n### 镜像信息\n- Docker Hub: $DOCKER_HUB_IMAGE\n- GitHub Container Registry: $GHCR_IMAGE\n- GitLab (git.t2be.cn): $GIT2BE_IMAGE\n- 私有仓库 (ph.nas.t2be.cn): $PH_IMAGE\n- 构建提交: ${{ github.sha }}" \
+            --notes "## 版本 $NEW_VERSION\n\n### 更新内容\n$CHANGELOG\n\n### 镜像信息\n- Docker Hub: $DOCKER_HUB_IMAGE\n- GitHub Container Registry: $GHCR_IMAGE\n- GitLab (git.t2be.cn): $GIT2BE_IMAGE\n- 私有仓库 (ph.nas.t2be.cn): $PH_IMAGE\n- 构建提交: ${{ github.sha }}\n\n### 快速拉取镜像\n```bash\n${GHCR_PULL_CMD}\n```" \
             --prerelease=false
             
           # 检查命令是否成功
