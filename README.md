@@ -110,7 +110,7 @@ docker run -d \
   -p 443:443 \
   -v ./data:/app/data \
   --name gocomicmosaic \
-  gocomicmosaic:latest
+  aspnmy/gocomicmosaic:latest  # 自动指向最新版本
 ```
 
 ### 使用Podman运行
@@ -121,7 +121,7 @@ podman run -d \
   -p 443:443 \
   -v ./data:/app/data \
   --name gocomicmosaic \
-  gocomicmosaic:latest
+  aspnmy/gocomicmosaic:latest
 
 ### 使用Docker Compose管理应用
 
@@ -171,13 +171,13 @@ go run ./cmd/api
 
 1. 创建SSL证书目录：
    ```bash
-   mkdir -p /your/local/path/ssl
+   mkdir -p /app/data/ssl
    ```
 
 2. 复制证书文件（必须使用这些文件名）：
    ```bash
-   cp /path/to/your/fullchain.pem /your/local/path/ssl/
-   cp /path/to/your/privkey.pem /your/local/path/ssl/
+   cp /app/data/ssl/fullchain.crt /app/data/ssl/path/ssl/
+   cp /app/data/ssl/privkey.key /app/data/ssl/path/ssl/
    ```
 
 

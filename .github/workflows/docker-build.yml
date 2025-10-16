@@ -102,6 +102,10 @@ jobs:
           echo "添加Docker Hub标签: $DOCKER_HUB_REPO:$VERSION_TAG"
           buildah tag $IMAGE_NAME $DOCKER_HUB_REPO:$VERSION_TAG
           
+          # 为Docker Hub添加latest标签
+          echo "添加Docker Hub latest标签: $DOCKER_HUB_REPO:latest"
+          buildah tag $IMAGE_NAME $DOCKER_HUB_REPO:latest
+          
           echo "添加GitHub Container Registry标签: $GHCR_REPO:$VERSION_TAG"
           buildah tag $IMAGE_NAME $GHCR_REPO:$VERSION_TAG
           
@@ -144,6 +148,9 @@ jobs:
           
           # 推送镜像到各个仓库
           push_image "${DOCKER_HUB_REPO}" "$VERSION_TAG" "Docker Hub"
+          
+          # 推送Docker Hub latest标签
+          push_image "${DOCKER_HUB_REPO}" "latest" "Docker Hub (latest标签)"
           
           # 检查GHCR的登录状态
           if [ "$GHCR_LOGIN_SUCCESS" != "true" ]; then
@@ -315,6 +322,7 @@ jobs:
           echo "✅ 容器镜像构建并推送成功！"
           echo "📚 所有可用镜像仓库地址:"
           echo "  • Docker Hub: $DOCKER_HUB_REPO:$IMAGE_TAG"
+          echo "  • Docker Hub (latest): $DOCKER_HUB_REPO:latest"
           echo "  • GitHub Container Registry: $GHCR_REPO:$IMAGE_TAG"
           echo "  • GitLab (git.t2be.cn): $GIT2BE_REPO:$IMAGE_TAG"
 
