@@ -133,14 +133,29 @@ jobs:
           echo "创建GitHub Release: $TAG_NAME"
           echo "发布说明内容:\n$CHANGELOG"
           
-          # 使用gh命令创建Release
-          echo "$GITHUB_TOKEN" | gh auth login --with-token
+          # 使用gh命令创建Release（使用环境变量直接认证，不需要单独的login步骤）
+          # 确保CHANGELOG不为空
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="- 自动版本更新到 $NEW_VERSION"
+          fi
+          
+          # 直接使用环境变量进行认证和Release创建
+          # 注意：GITHUB_TOKEN已在环境变量中设置，gh命令会自动使用它
+          echo "创建GitHub Release..."
+          set +e  # 允许命令失败但继续执行
           gh release create "$TAG_NAME" \
             --title "GoComicMosaic v$NEW_VERSION" \
             --notes "## 版本 $NEW_VERSION\n\n### 更新内容\n$CHANGELOG\n\n### 镜像信息\n- Docker Hub: ${{ github.repository }}:$TAG_NAME\n- 构建提交: ${{ github.sha }}" \
             --prerelease=false
-          
-          echo "✅ GitHub Release 创建成功: https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+            
+          # 检查命令是否成功
+          if [ $? -eq 0 ]; then
+            echo "✅ GitHub Release 创建成功: https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+          else
+            echo "⚠️ GitHub Release 创建失败，这可能是由于权限问题或标签已存在。"
+            echo "但tag已成功创建和推送，版本更新已完成。"
+          fi
+          set -e  # 恢复错误立即退出模式
 
       # 构建完成后的通知
       - name: 构建完成通知
