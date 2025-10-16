@@ -19,7 +19,7 @@ mkdir -p /app/data/nginx
 
 # 检测SSL证书是否存在
 SSL_AVAILABLE=false
-if [ -f "/app/data/ssl/fullchain.crt" ] && [ -f "/app/data/ssl/privkey.key" ]; then
+if [ -f "/app/data/ssl/fullchain.crt"] && [ -f "/app/data/ssl/privkey.key" ]; then
     SSL_AVAILABLE=true
     echo "检测到SSL证书，将启用HTTPS"
 else
@@ -44,8 +44,8 @@ server {
         echo "    server_name ${DOMAIN};"
         echo ""
         echo "    # SSL配置"
-        echo "    ssl_certificate /app/data/ssl/fullchain.pem;"
-        echo "    ssl_certificate_key /app/data/ssl/privkey.pem;"
+        echo "    ssl_certificate /app/data/ssl/fullchain.crt;"
+        echo "    ssl_certificate_key /app/data/ssl/privkey.key;"
         echo "    ssl_protocols TLSv1.2 TLSv1.3;"
         echo "    ssl_prefer_server_ciphers on;"
         echo "    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;"
