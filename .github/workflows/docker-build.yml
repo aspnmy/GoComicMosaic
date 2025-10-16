@@ -60,21 +60,26 @@ jobs:
           
           # 为构建的镜像添加所有标签
           IMAGE_NAME="gocomicmosaic:latest"
-          for tag in ${{ steps.meta.outputs.tags }}; do
-            # 从完整标签中提取仓库名和标签名
-            repo=$(echo $tag | cut -d':' -f1)
-            tag_name=$(echo $tag | cut -d':' -f2)
-            echo "添加标签: $repo:$tag_name"
-            buildah tag $IMAGE_NAME $repo:$tag_name
-          done
+          # 将标签输出转换为数组（使用换行符作为分隔符）
+          TAGS="${{ steps.meta.outputs.tags }}"
+          while IFS= read -r tag; do
+            if [ -n "$tag" ]; then
+              echo "添加标签: $tag"
+              buildah tag $IMAGE_NAME $tag
+            fi
+          done <<< "$TAGS"
 
       # 推送镜像
       - name: 推送镜像到Docker Hub
         run: |
-          for tag in ${{ steps.meta.outputs.tags }}; do
-            echo "推送: $tag"
-            buildah push $tag
-          done
+          # 使用安全的方式解析标签列表
+          TAGS="${{ steps.meta.outputs.tags }}"
+          while IFS= read -r tag; do
+            if [ -n "$tag" ]; then
+              echo "推送: $tag"
+              buildah push $tag
+            fi
+          done <<< "$TAGS"
 
       # 更新版本号、创建tag和GitHub Release
       - name: 更新版本号、创建tag和GitHub Release
