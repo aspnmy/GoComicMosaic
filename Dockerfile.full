@@ -121,8 +121,7 @@ RUN mkdir -p /app/data \
 # 暴露端口
 EXPOSE 80 443
 
-# 设置启动命令
-CMD ["/app/start.sh"]
+
 
 # 设置卷挂载点 - 与原始Dockerfile保持一致
 VOLUME ["/app/data"]
