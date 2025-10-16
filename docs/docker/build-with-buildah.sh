@@ -2,23 +2,14 @@
 
 # GoComicMosaic buildah构建脚本
 # 此脚本将Dockerfile.full的功能转换为buildah命令序列
-# 参数1: 镜像名称（可选，默认: gocomicmosaic:latest）
-# 参数2: 启动脚本路径（可选，默认: ./start.sh）
 
 set -e
 
-# 接收参数，设置默认值
-IMAGE_NAME=${1:-"gocomicmosaic:latest"}
-START_SCRIPT_PATH=${2:-"start.sh"}
-START_SCRIPT_FILENAME=$(basename "$START_SCRIPT_PATH")
-
-# 确定容器名称（基于镜像名称）
-CONTAINER_NAME="gocomicmosaic-builder-$(echo "$IMAGE_NAME" | sed 's/:/-/g' | sed 's/\//-/g')"
-
 echo "开始使用buildah构建GoComicMosaic镜像..."
-echo "- 镜像名称: $IMAGE_NAME"
-echo "- 启动脚本: $START_SCRIPT_PATH"
-echo "- 容器名称: $CONTAINER_NAME"
+
+# 设置变量
+IMAGE_NAME="gocomicmosaic:latest"
+CONTAINER_NAME="gocomicmosaic-builder"
 
 # 清理可能存在的旧构建
 buildah rm -a 2>/dev/null || true
@@ -86,8 +77,8 @@ buildah copy --from=$frontend_container $final_container /app/frontend/dist /app
 buildah copy --from=$backend_container $final_container /app/gobackend/output/app /app/gobackend/
 
 # 复制启动脚本
-buildah copy $final_container "$START_SCRIPT_PATH" /app/
-buildah run $final_container chmod +x /app/$START_SCRIPT_FILENAME
+buildah copy $final_container ./start.sh /app/
+buildah run $final_container chmod +x /app/start.sh
 
 # 创建必要的目录
 buildah run $final_container mkdir -p /app/data /app/data/imgs /app/data/uploads /app/data/nginx /app/data/ssl
@@ -99,16 +90,11 @@ buildah config --port 80 --port 443 $final_container
 buildah config --volume /app/data $final_container
 
 # 设置启动命令
-buildah config --cmd ["/app/$START_SCRIPT_FILENAME"] $final_container
+buildah config --cmd ["/app/start.sh"] $final_container
 
 # 提交镜像
 echo "提交镜像 $IMAGE_NAME..."
 buildah commit $final_container $IMAGE_NAME
-
-# 显示构建成功信息
-echo "✅ 镜像构建成功!"
-echo "- 镜像名称: $IMAGE_NAME"
-echo "- 启动脚本: /app/$START_SCRIPT_FILENAME"
 
 # 清理中间容器
 echo "清理中间容器..."

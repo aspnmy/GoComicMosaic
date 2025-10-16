@@ -70,6 +70,12 @@ docker-compose up -d
 docker-compose -f docker-compose.yml up -d
 ```
 
+### 2. 选择Nginx或Caddy版本
+
+项目现在提供两个版本的容器镜像：
+- Nginx版本：使用Nginx作为Web服务器，需要手动配置SSL证书
+- Caddy版本：使用Caddy作为Web服务器，具备自动HTTPS证书管理功能
+
 ### 2. 使用预构建镜像快速部署
 
 如果您不想构建镜像，也可以使用预构建的镜像直接部署：
@@ -104,24 +110,63 @@ docker run -d --name dongman \
 
 ### 使用Docker运行自定义构建镜像
 
+项目现在提供两个版本的容器镜像，使用不同的标签格式：
+- Nginx版本：`aspnmy/gocomicmosaic:<version>-nginx-alpine-sts`
+- Caddy版本：`aspnmy/gocomicmosaic:<version>-caddy-alpine-sts`
+
+也可以使用最新标签：
+- Nginx最新版本：`aspnmy/gocomicmosaic:nginx-latest`
+- Caddy最新版本：`aspnmy/gocomicmosaic:caddy-latest`
+
+#### 使用Nginx版本（需要手动配置SSL）
+
 ```bash
 docker run -d \
   -p 80:80 \
   -p 443:443 \
   -v ./data:/app/data \
+  -e DOMAIN=your-domain.com \
   --name gocomicmosaic \
-  aspnmy/gocomicmosaic:latest  # 自动指向最新版本
+  aspnmy/gocomicmosaic:nginx-latest
 ```
 
+#### 使用Caddy版本（自动HTTPS）
+
+```bash
+docker run -d \
+  -p 80:80 \
+  -p 443:443 \
+  -v ./data:/app/data \
+  -e DOMAIN=your-domain.com \
+  -e ACME_EMAIL=your-email@example.com \
+  --name gocomicmosaic \
+  aspnmy/gocomicmosaic:caddy-latest
+
 ### 使用Podman运行
+
+#### 使用Nginx版本
 
 ```bash
 podman run -d \
   -p 80:80 \
   -p 443:443 \
   -v ./data:/app/data \
+  -e DOMAIN=your-domain.com \
   --name gocomicmosaic \
-  aspnmy/gocomicmosaic:latest
+  aspnmy/gocomicmosaic:nginx-latest
+```
+
+#### 使用Caddy版本
+
+```bash
+podman run -d \
+  -p 80:80 \
+  -p 443:443 \
+  -v ./data:/app/data \
+  -e DOMAIN=your-domain.com \
+  -e ACME_EMAIL=your-email@example.com \
+  --name gocomicmosaic \
+  aspnmy/gocomicmosaic:caddy-latest
 
 ### 使用Docker Compose管理应用
 
@@ -144,10 +189,32 @@ docker-compose ps
 
 ## 环境变量
 
+### 通用环境变量
+
 - `DB_PATH`: 数据库文件路径（默认：`/app/data/database.db`）
 - `ASSETS_PATH`: 资源文件路径（默认：`/app/data/assets`）
 - `DOMAIN`: 应用域名（默认：`localhost`）
 - `TZ`: 时区设置（默认：`Asia/Shanghai`）
+
+### Caddy版本特有环境变量
+
+- `ACME_EMAIL`: ACME证书注册邮箱（用于自动HTTPS）
+- `USE_TEST_CA`: 使用测试CA（设置为`true`时使用Let's Encrypt测试服务器）
+- `DISABLE_HTTPS`: 禁用HTTPS（设置为`true`时仅使用HTTP）
+
+### Nginx版本特有配置
+
+如需启用HTTPS，需要在挂载目录中放置SSL证书：
+
+1. 创建SSL证书目录：
+   ```bash
+   mkdir -p /app/data/ssl
+   ```
+
+2. 复制证书文件（必须使用这些文件名）：
+   ```bash
+   cp /path/to/fullchain.crt /app/data/ssl/
+   cp /path/to/privkey.key /app/data/ssl/
 
 ## 开发说明
 
