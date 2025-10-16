@@ -36,8 +36,11 @@ jobs:
         id: version
         run: |
           VERSION=$(cat version.txt | tr -d '[:space:]')
+          # 将仓库名转换为小写以符合Docker命名规范
+          LOWERCASE_REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "IMAGE_TAG=${VERSION}-alpine-sts" >> $GITHUB_OUTPUT
+          echo "LOWERCASE_REPO=$LOWERCASE_REPO" >> $GITHUB_OUTPUT
           echo "读取到的版本号: $VERSION，镜像标签: ${VERSION}-alpine-sts"
 
       # 构建并推送容器镜像
@@ -51,25 +54,26 @@ jobs:
           
           # 为构建的镜像添加基于版本号的标签
           IMAGE_NAME="gocomicmosaic:latest"
-          REPO="${{ github.repository }}"
+          LOWERCASE_REPO="${{ steps.version.outputs.LOWERCASE_REPO }}"
           VERSION_TAG="${{ steps.version.outputs.IMAGE_TAG }}"
           
           # 创建版本标签
-          echo "添加标签: $REPO:$VERSION_TAG"
-          buildah tag $IMAGE_NAME $REPO:$VERSION_TAG
+          echo "添加标签: $LOWERCASE_REPO:$VERSION_TAG"
+          buildah tag $IMAGE_NAME $LOWERCASE_REPO:$VERSION_TAG
           
           # 保存标签信息供后续步骤使用
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
+          echo "LOWERCASE_REPO=$LOWERCASE_REPO" >> $GITHUB_ENV
 
       # 推送镜像
       - name: 推送镜像到Docker Hub
         run: |
-          # 推送基于版本号的镜像标签
-          REPO="${{ github.repository }}"
+          # 推送基于版本号的镜像标签（使用小写仓库名）
+          LOWERCASE_REPO="${LOWERCASE_REPO}"
           VERSION_TAG="${VERSION_TAG}"
           
-          echo "推送镜像: $REPO:$VERSION_TAG"
-          buildah push $REPO:$VERSION_TAG
+          echo "推送镜像: $LOWERCASE_REPO:$VERSION_TAG"
+          buildah push $LOWERCASE_REPO:$VERSION_TAG
 
       # 更新版本号、创建tag和GitHub Release
       - name: 更新版本号、创建tag和GitHub Release
@@ -131,6 +135,8 @@ jobs:
           
           # 获取镜像标签信息
           IMAGE_TAG="${NEW_VERSION}-alpine-sts"
+          # 使用小写仓库名
+          LOWERCASE_REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           
           # 直接使用环境变量进行认证和Release创建
           # 注意：GITHUB_TOKEN已在环境变量中设置，gh命令会自动使用它
@@ -138,7 +144,7 @@ jobs:
           set +e  # 允许命令失败但继续执行
           gh release create "$TAG_NAME" \
             --title "GoComicMosaic v$NEW_VERSION" \
-            --notes "## 版本 $NEW_VERSION\n\n### 更新内容\n$CHANGELOG\n\n### 镜像信息\n- Docker Hub: ${{ github.repository }}:$IMAGE_TAG\n- 构建提交: ${{ github.sha }}" \
+            --notes "## 版本 $NEW_VERSION\n\n### 更新内容\n$CHANGELOG\n\n### 镜像信息\n- Docker Hub: $LOWERCASE_REPO:$IMAGE_TAG\n- 构建提交: ${{ github.sha }}" \
             --prerelease=false
             
           # 检查命令是否成功
@@ -156,9 +162,11 @@ jobs:
         run: |
           VERSION=$(cat version.txt | tr -d '[:space:]')
           IMAGE_TAG="${VERSION}-alpine-sts"
+          # 使用小写仓库名
+          LOWERCASE_REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           
           echo "✅ 容器镜像构建并推送成功！"
-          echo "🔍 镜像标签: ${{ github.repository }}:$IMAGE_TAG"
+          echo "🔍 镜像标签: $LOWERCASE_REPO:$IMAGE_TAG"
           echo "📦 镜像大小优化: 使用buildah构建减小体积"
           echo "📝 构建信息: 提交SHA - ${{ github.sha }}"
           echo "⚡ 优势: 与Docker相比，buildah生成的镜像体积更小，更适合生产环境部署"
