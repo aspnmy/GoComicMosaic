@@ -132,7 +132,22 @@ buildah config --cmd ["/app/$START_SCRIPT_FILENAME"] $final_container
 echo "提交镜像 $IMAGE_NAME..."
 buildah commit $final_container $IMAGE_NAME
 
-# 显示构建成功信息
+# 验证镜像构建成功
+echo "验证镜像构建是否成功..."
+# 检查带前缀和不带前缀的镜像名称
+IMAGE_FOUND=false
+if buildah images | grep -q "${IMAGE_NAME}"; then
+  IMAGE_FOUND=true
+elif buildah images | grep -q "localhost/${IMAGE_NAME}"; then
+  IMAGE_FOUND=true
+  echo "⚠️  注意: 镜像以localhost/${IMAGE_NAME}形式存在"
+fi
+
+if [ "$IMAGE_FOUND" = false ]; then
+  echo "❌ 镜像 ${IMAGE_NAME} 构建失败!"
+  buildah images
+  exit 1
+fi
 echo "✅ 镜像构建成功!"
 echo "- 镜像名称: $IMAGE_NAME"
 echo "- 启动脚本: /app/$START_SCRIPT_FILENAME"

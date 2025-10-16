@@ -149,7 +149,15 @@ jobs:
           fi
           
           # 验证镜像是否成功创建
-          if ! buildah images | grep -q "${NGINX_IMAGE_NAME}"; then
+          NGINX_IMAGE_FOUND=false
+          if buildah images | grep -q "${NGINX_IMAGE_NAME}"; then
+            NGINX_IMAGE_FOUND=true
+          elif buildah images | grep -q "localhost/${NGINX_IMAGE_NAME}"; then
+            NGINX_IMAGE_FOUND=true
+            echo "⚠️  注意: Nginx镜像以localhost/${NGINX_IMAGE_NAME}形式存在"
+          fi
+          
+          if [ "$NGINX_IMAGE_FOUND" = false ]; then
             echo "❌ 镜像 ${NGINX_IMAGE_NAME} 未成功创建!"
             buildah images
             exit 1
@@ -172,7 +180,15 @@ jobs:
           fi
           
           # 验证镜像是否成功创建
-          if ! buildah images | grep -q "${CADDY_IMAGE_NAME}"; then
+          CADDY_IMAGE_FOUND=false
+          if buildah images | grep -q "${CADDY_IMAGE_NAME}"; then
+            CADDY_IMAGE_FOUND=true
+          elif buildah images | grep -q "localhost/${CADDY_IMAGE_NAME}"; then
+            CADDY_IMAGE_FOUND=true
+            echo "⚠️  注意: Caddy镜像以localhost/${CADDY_IMAGE_NAME}形式存在"
+          fi
+          
+          if [ "$CADDY_IMAGE_FOUND" = false ]; then
             echo "❌ 镜像 ${CADDY_IMAGE_NAME} 未成功创建!"
             buildah images
             exit 1
@@ -181,16 +197,23 @@ jobs:
           
           # 为Nginx版本镜像添加标签
           echo "为Nginx版本镜像添加标签: $DOCKER_HUB_REPO:$NGINX_IMAGE_TAG"
+          # 检查镜像是否带有localhost前缀
+          ACTUAL_NGINX_IMAGE_NAME=$NGINX_IMAGE_NAME
+          if buildah images | grep -q "localhost/${NGINX_IMAGE_NAME}"; then
+            ACTUAL_NGINX_IMAGE_NAME="localhost/${NGINX_IMAGE_NAME}"
+            echo "⚠️  使用带有localhost前缀的镜像名称: $ACTUAL_NGINX_IMAGE_NAME"
+          fi
+          
           # 添加错误检查
-          if ! buildah tag $NGINX_IMAGE_NAME $DOCKER_HUB_REPO:$NGINX_IMAGE_TAG; then
+          if ! buildah tag $ACTUAL_NGINX_IMAGE_NAME $DOCKER_HUB_REPO:$NGINX_IMAGE_TAG; then
             echo "❌ 为Nginx版本镜像添加Docker Hub标签失败!"
             exit 1
           fi
-          if ! buildah tag $NGINX_IMAGE_NAME $GHCR_REPO:$NGINX_IMAGE_TAG; then
+          if ! buildah tag $ACTUAL_NGINX_IMAGE_NAME $GHCR_REPO:$NGINX_IMAGE_TAG; then
             echo "❌ 为Nginx版本镜像添加GHCR标签失败!"
             exit 1
           fi
-          if ! buildah tag $NGINX_IMAGE_NAME $GIT2BE_REPO:$NGINX_IMAGE_TAG; then
+          if ! buildah tag $ACTUAL_NGINX_IMAGE_NAME $GIT2BE_REPO:$NGINX_IMAGE_TAG; then
             echo "❌ 为Nginx版本镜像添加git.t2be.cn标签失败!"
             exit 1
           fi
@@ -198,24 +221,31 @@ jobs:
           
           # 为Caddy版本镜像添加标签
           echo "为Caddy版本镜像添加标签: $DOCKER_HUB_REPO:$CADDY_IMAGE_TAG"
-          buildah tag $CADDY_IMAGE_NAME $DOCKER_HUB_REPO:$CADDY_IMAGE_TAG
-          buildah tag $CADDY_IMAGE_NAME $GHCR_REPO:$CADDY_IMAGE_TAG
-          buildah tag $CADDY_IMAGE_NAME $GIT2BE_REPO:$CADDY_IMAGE_TAG
+          # 检查镜像是否带有localhost前缀
+          ACTUAL_CADDY_IMAGE_NAME=$CADDY_IMAGE_NAME
+          if buildah images | grep -q "localhost/${CADDY_IMAGE_NAME}"; then
+            ACTUAL_CADDY_IMAGE_NAME="localhost/${CADDY_IMAGE_NAME}"
+            echo "⚠️  使用带有localhost前缀的镜像名称: $ACTUAL_CADDY_IMAGE_NAME"
+          fi
+          
+          buildah tag $ACTUAL_CADDY_IMAGE_NAME $DOCKER_HUB_REPO:$CADDY_IMAGE_TAG
+          buildah tag $ACTUAL_CADDY_IMAGE_NAME $GHCR_REPO:$CADDY_IMAGE_TAG
+          buildah tag $ACTUAL_CADDY_IMAGE_NAME $GIT2BE_REPO:$CADDY_IMAGE_TAG
           
           # 为Docker Hub添加latest标签（默认为Nginx版本）
           echo "添加Docker Hub latest标签（指向Nginx版本）: $DOCKER_HUB_REPO:latest"
-          if ! buildah tag $NGINX_IMAGE_NAME $DOCKER_HUB_REPO:latest; then
+          if ! buildah tag $ACTUAL_NGINX_IMAGE_NAME $DOCKER_HUB_REPO:latest; then
             echo "❌ 添加Docker Hub latest标签失败!"
             exit 1
           fi
           
           # 为Docker Hub添加特定的nginx-latest和caddy-latest标签
           echo "添加特定的最新版本标签"
-          if ! buildah tag $NGINX_IMAGE_NAME $DOCKER_HUB_REPO:nginx-latest; then
+          if ! buildah tag $ACTUAL_NGINX_IMAGE_NAME $DOCKER_HUB_REPO:nginx-latest; then
             echo "❌ 添加nginx-latest标签失败!"
             exit 1
           fi
-          if ! buildah tag $CADDY_IMAGE_NAME $DOCKER_HUB_REPO:caddy-latest; then
+          if ! buildah tag $ACTUAL_CADDY_IMAGE_NAME $DOCKER_HUB_REPO:caddy-latest; then
             echo "❌ 添加caddy-latest标签失败!"
             exit 1
           fi
