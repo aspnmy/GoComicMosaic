@@ -26,10 +26,20 @@ jobs:
           sudo apt-get install -y buildah
           buildah --version
 
-      # 登录Docker Hub
+      # 登录所有容器仓库
       - name: 登录Docker Hub
         run: |
           echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | buildah login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin docker.io
+          
+          # 登录GitHub Container Registry
+          echo "${{ secrets.GHCR_PUSH_TOKEN }}" | buildah login -u "${{ secrets.GHCR_NAME }}" --password-stdin ghcr.io
+          
+          # 登录git.t2be.cn
+          echo "${{ secrets.GIT2BE_PUSH_TOKEN }}" | buildah login -u "${{ secrets.GIT2BE_NAME }}" --password-stdin git.t2be.cn
+          
+          # 登录ph.nas.t2be.cn
+          echo "${{ secrets.PH147_PUSH_TOKEN }}" | buildah login -u "${{ secrets.PH47_NAME }}" --password-stdin ph.nas.t2be.cn
+          echo "✅ 已成功登录所有容器仓库"
 
       # 读取版本号用于镜像标签
       - name: 读取版本号
@@ -57,23 +67,65 @@ jobs:
           LOWERCASE_REPO="${{ steps.version.outputs.LOWERCASE_REPO }}"
           VERSION_TAG="${{ steps.version.outputs.IMAGE_TAG }}"
           
-          # 创建版本标签
-          echo "添加标签: $LOWERCASE_REPO:$VERSION_TAG"
-          buildah tag $IMAGE_NAME $LOWERCASE_REPO:$VERSION_TAG
+          # 仓库列表
+          DOCKER_HUB_REPO="$LOWERCASE_REPO"
+          GHCR_REPO="ghcr.io/${LOWERCASE_REPO}"
+          GIT2BE_REPO="git.t2be.cn/${LOWERCASE_REPO}"
+          PH_REPO="ph.nas.t2be.cn/${LOWERCASE_REPO}"
+          
+          # 为所有仓库添加标签
+          echo "添加Docker Hub标签: $DOCKER_HUB_REPO:$VERSION_TAG"
+          buildah tag $IMAGE_NAME $DOCKER_HUB_REPO:$VERSION_TAG
+          
+          echo "添加GitHub Container Registry标签: $GHCR_REPO:$VERSION_TAG"
+          buildah tag $IMAGE_NAME $GHCR_REPO:$VERSION_TAG
+          
+          echo "添加git.t2be.cn标签: $GIT2BE_REPO:$VERSION_TAG"
+          buildah tag $IMAGE_NAME $GIT2BE_REPO:$VERSION_TAG
+          
+          echo "添加ph.nas.t2be.cn标签: $PH_REPO:$VERSION_TAG"
+          buildah tag $IMAGE_NAME $PH_REPO:$VERSION_TAG
           
           # 保存标签信息供后续步骤使用
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
           echo "LOWERCASE_REPO=$LOWERCASE_REPO" >> $GITHUB_ENV
+          echo "DOCKER_HUB_REPO=$DOCKER_HUB_REPO" >> $GITHUB_ENV
+          echo "GHCR_REPO=$GHCR_REPO" >> $GITHUB_ENV
+          echo "GIT2BE_REPO=$GIT2BE_REPO" >> $GITHUB_ENV
+          echo "PH_REPO=$PH_REPO" >> $GITHUB_ENV
+          echo "保存的小写仓库名: $LOWERCASE_REPO"
 
-      # 推送镜像
-      - name: 推送镜像到Docker Hub
+      # 推送镜像到所有容器仓库
+      - name: 推送镜像到所有容器仓库
         run: |
-          # 推送基于版本号的镜像标签（使用小写仓库名）
-          LOWERCASE_REPO="${LOWERCASE_REPO}"
           VERSION_TAG="${VERSION_TAG}"
           
-          echo "推送镜像: $LOWERCASE_REPO:$VERSION_TAG"
-          buildah push $LOWERCASE_REPO:$VERSION_TAG
+          # 推送函数 - 允许单个推送失败但继续执行
+          push_image() {
+            local repo=$1
+            local tag=$2
+            local repo_name=$3
+            
+            echo "📦 推送镜像到 $repo_name: $repo:$tag"
+            set +e  # 允许推送失败但继续执行其他推送
+            buildah push $repo:$tag
+            if [ $? -eq 0 ]; then
+              echo "✅ 成功推送到 $repo_name"
+              return 0
+            else
+              echo "❌ 推送到 $repo_name 失败，继续尝试其他仓库"
+              return 1
+            fi
+          }
+          
+          # 推送镜像到各个仓库
+          push_image "${DOCKER_HUB_REPO}" "$VERSION_TAG" "Docker Hub"
+          push_image "${GHCR_REPO}" "$VERSION_TAG" "GitHub Container Registry"
+          push_image "${GIT2BE_REPO}" "$VERSION_TAG" "git.t2be.cn"
+          push_image "${PH_REPO}" "$VERSION_TAG" "ph.nas.t2be.cn"
+          
+          set -e  # 恢复错误退出模式
+          echo "✅ 镜像推送流程完成"
 
       # 更新版本号、创建tag和GitHub Release
       - name: 更新版本号、创建tag和GitHub Release
@@ -135,8 +187,15 @@ jobs:
           
           # 获取镜像标签信息
           IMAGE_TAG="${NEW_VERSION}-alpine-sts"
-          # 使用小写仓库名
-          LOWERCASE_REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          # 从环境变量获取小写仓库名，避免重复计算
+          LOWERCASE_REPO="${LOWERCASE_REPO}"
+          echo "GitHub Release中使用小写仓库名: $LOWERCASE_REPO"
+          
+          # 构建镜像仓库地址列表
+          DOCKER_HUB_IMAGE="${DOCKER_HUB_REPO}:${IMAGE_TAG}"
+          GHCR_IMAGE="${GHCR_REPO}:${IMAGE_TAG}"
+          GIT2BE_IMAGE="${GIT2BE_REPO}:${IMAGE_TAG}"
+          PH_IMAGE="${PH_REPO}:${IMAGE_TAG}"
           
           # 直接使用环境变量进行认证和Release创建
           # 注意：GITHUB_TOKEN已在环境变量中设置，gh命令会自动使用它
@@ -144,7 +203,7 @@ jobs:
           set +e  # 允许命令失败但继续执行
           gh release create "$TAG_NAME" \
             --title "GoComicMosaic v$NEW_VERSION" \
-            --notes "## 版本 $NEW_VERSION\n\n### 更新内容\n$CHANGELOG\n\n### 镜像信息\n- Docker Hub: $LOWERCASE_REPO:$IMAGE_TAG\n- 构建提交: ${{ github.sha }}" \
+            --notes "## 版本 $NEW_VERSION\n\n### 更新内容\n$CHANGELOG\n\n### 镜像信息\n- Docker Hub: $DOCKER_HUB_IMAGE\n- GitHub Container Registry: $GHCR_IMAGE\n- GitLab (git.t2be.cn): $GIT2BE_IMAGE\n- 私有仓库 (ph.nas.t2be.cn): $PH_IMAGE\n- 构建提交: ${{ github.sha }}" \
             --prerelease=false
             
           # 检查命令是否成功
@@ -162,11 +221,20 @@ jobs:
         run: |
           VERSION=$(cat version.txt | tr -d '[:space:]')
           IMAGE_TAG="${VERSION}-alpine-sts"
-          # 使用小写仓库名
-          LOWERCASE_REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          # 从环境变量获取小写仓库名和仓库地址
+          LOWERCASE_REPO="${LOWERCASE_REPO}"
+          DOCKER_HUB_REPO="${DOCKER_HUB_REPO}"
+          GHCR_REPO="${GHCR_REPO}"
+          GIT2BE_REPO="${GIT2BE_REPO}"
+          PH_REPO="${PH_REPO}"
           
+          echo "通知中使用小写仓库名: $LOWERCASE_REPO"
           echo "✅ 容器镜像构建并推送成功！"
-          echo "🔍 镜像标签: $LOWERCASE_REPO:$IMAGE_TAG"
+          echo "📚 所有可用镜像仓库地址:"
+          echo "  • Docker Hub: $DOCKER_HUB_REPO:$IMAGE_TAG"
+          echo "  • GitHub Container Registry: $GHCR_REPO:$IMAGE_TAG"
+          echo "  • GitLab (git.t2be.cn): $GIT2BE_REPO:$IMAGE_TAG"
+          echo "  • 私有仓库 (ph.nas.t2be.cn): $PH_REPO:$IMAGE_TAG"
           echo "📦 镜像大小优化: 使用buildah构建减小体积"
           echo "📝 构建信息: 提交SHA - ${{ github.sha }}"
           echo "⚡ 优势: 与Docker相比，buildah生成的镜像体积更小，更适合生产环境部署"
