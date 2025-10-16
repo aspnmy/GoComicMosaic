@@ -273,17 +273,15 @@ jobs:
           echo "创建GitHub Release..."
           set +e  # 允许命令失败但继续执行
           # 创建Release说明文本文件
-          cat > release-notes.md << EOF
-## 版本 $NEW_VERSION
-
-### 更新内容
-$CHANGELOG
-
-### 镜像信息
-- docker pull $DOCKER_HUB_IMAGE
-- docker pull $GHCR_IMAGE
-- 构建提交: ${{ github.sha }}
-EOF
+          echo "## 版本 $NEW_VERSION" > release-notes.md
+          echo "" >> release-notes.md
+          echo "### 更新内容" >> release-notes.md
+          echo "$CHANGELOG" >> release-notes.md
+          echo "" >> release-notes.md
+          echo "### 镜像信息" >> release-notes.md
+          echo "- docker pull $DOCKER_HUB_IMAGE" >> release-notes.md
+          echo "- docker pull $GHCR_IMAGE" >> release-notes.md
+          echo "- 构建提交: ${{ github.sha }}" >> release-notes.md
           
           # 使用文件内容作为notes创建Release
           gh release create "$TAG_NAME" \
