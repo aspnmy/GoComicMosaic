@@ -150,11 +150,19 @@ jobs:
           
           # 验证镜像是否成功创建
           NGINX_IMAGE_FOUND=false
-          if buildah images | grep -q "${NGINX_IMAGE_NAME}"; then
+          # 分离仓库名和标签
+          NGINX_REPO=$(echo "${NGINX_IMAGE_NAME}" | cut -d':' -f1)
+          NGINX_TAG=$(echo "${NGINX_IMAGE_NAME}" | cut -d':' -f2)
+          
+          # 获取镜像列表并检查
+          NGINX_IMAGES=$(buildah images)
+          echo "Nginx镜像列表:"
+          echo "$NGINX_IMAGES"
+          
+          # 使用正则表达式匹配仓库名和标签
+          if echo "$NGINX_IMAGES" | grep -E "(^|[[:space:]])($NGINX_REPO|localhost/$NGINX_REPO)[[:space:]]+$NGINX_TAG($|[[:space:]])" -q; then
             NGINX_IMAGE_FOUND=true
-          elif buildah images | grep -q "localhost/${NGINX_IMAGE_NAME}"; then
-            NGINX_IMAGE_FOUND=true
-            echo "⚠️  注意: Nginx镜像以localhost/${NGINX_IMAGE_NAME}形式存在"
+            echo "✅ 找到匹配的Nginx镜像: ${NGINX_REPO}:${NGINX_TAG}"
           fi
           
           if [ "$NGINX_IMAGE_FOUND" = false ]; then
@@ -181,11 +189,19 @@ jobs:
           
           # 验证镜像是否成功创建
           CADDY_IMAGE_FOUND=false
-          if buildah images | grep -q "${CADDY_IMAGE_NAME}"; then
+          # 分离仓库名和标签
+          CADDY_REPO=$(echo "${CADDY_IMAGE_NAME}" | cut -d':' -f1)
+          CADDY_TAG=$(echo "${CADDY_IMAGE_NAME}" | cut -d':' -f2)
+          
+          # 获取镜像列表并检查
+          CADDY_IMAGES=$(buildah images)
+          echo "Caddy镜像列表:"
+          echo "$CADDY_IMAGES"
+          
+          # 使用正则表达式匹配仓库名和标签
+          if echo "$CADDY_IMAGES" | grep -E "(^|[[:space:]])($CADDY_REPO|localhost/$CADDY_REPO)[[:space:]]+$CADDY_TAG($|[[:space:]])" -q; then
             CADDY_IMAGE_FOUND=true
-          elif buildah images | grep -q "localhost/${CADDY_IMAGE_NAME}"; then
-            CADDY_IMAGE_FOUND=true
-            echo "⚠️  注意: Caddy镜像以localhost/${CADDY_IMAGE_NAME}形式存在"
+            echo "✅ 找到匹配的Caddy镜像: ${CADDY_REPO}:${CADDY_TAG}"
           fi
           
           if [ "$CADDY_IMAGE_FOUND" = false ]; then
