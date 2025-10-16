@@ -46,7 +46,7 @@ jobs:
           
           # 登录ph.nas.t2be.cn
           echo "正在登录ph.nas.t2be.cn..."
-          echo "${{ secrets.PH147_PUSH_TOKEN }}" | buildah login -u "${{ secrets.PH47_NAME }}" --password-stdin ph.nas.t2be.cn
+          echo "${{ secrets.PH147_PUSH_TOKEN }}" | buildah login -u "${{ secrets.PH147_NAME }}" --password-stdin ph.nas.t2be.cn
           echo "✅ ph.nas.t2be.cn登录成功"
 
       # 读取版本号用于镜像标签
@@ -130,32 +130,32 @@ jobs:
           push_image "${DOCKER_HUB_REPO}" "$VERSION_TAG" "Docker Hub"
           push_image "${GHCR_REPO}" "$VERSION_TAG" "GitHub Container Registry"
           
-          # 检查git.t2be.cn的健康状态，如果返回码不是200则跳过推送
+          # 检查git.t2be.cn的健康状态，使用buildah info命令进行更可靠的检查
           echo "🔍 检查git.t2be.cn仓库健康状态..."
-          set +e  # 允许curl失败但继续执行
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://git.t2be.cn/v2/)
-          set -e
+          set +e  # 允许检查失败但继续执行
+          # 尝试使用buildah info命令检查仓库连接性
+          buildah info --format '{{.Registries}}' | grep -q "git.t2be.cn"
+          BUILDAH_CHECK=$?
           
-          echo "📊 git.t2be.cn返回状态码: $HTTP_STATUS"
-          if [ "$HTTP_STATUS" -eq 200 ]; then
+          if [ $BUILDAH_CHECK -eq 0 ]; then
             echo "✅ git.t2be.cn仓库可用，准备推送镜像"
             push_image "${GIT2BE_REPO}" "$VERSION_TAG" "git.t2be.cn"
           else
-            echo "⚠️ git.t2be.cn仓库不可用（返回码: $HTTP_STATUS），跳过推送"
+            echo "⚠️ git.t2be.cn仓库不可用或未正确配置，跳过推送"
           fi
           
-          # 检查ph.nas.t2be.cn的健康状态，如果返回码不是200则跳过推送
+          # 检查ph.nas.t2be.cn的健康状态，使用buildah ping命令进行更可靠的检查
           echo "🔍 检查ph.nas.t2be.cn仓库健康状态..."
-          set +e  # 允许curl失败但继续执行
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://ph.nas.t2be.cn/v2/)
-          set -e
+          set +e  # 允许检查失败但继续执行
+          # 尝试使用buildah info命令检查仓库连接性
+          buildah info --format '{{.Registries}}' | grep -q "ph.nas.t2be.cn"
+          BUILDAH_CHECK=$?
           
-          echo "📊 ph.nas.t2be.cn返回状态码: $HTTP_STATUS"
-          if [ "$HTTP_STATUS" -eq 200 ]; then
+          if [ $BUILDAH_CHECK -eq 0 ]; then
             echo "✅ ph.nas.t2be.cn仓库可用，准备推送镜像"
             push_image "${PH_REPO}" "$VERSION_TAG" "ph.nas.t2be.cn"
           else
-            echo "⚠️ ph.nas.t2be.cn仓库不可用（返回码: $HTTP_STATUS），跳过推送"
+            echo "⚠️ ph.nas.t2be.cn仓库不可用或未正确配置，跳过推送"
           fi
           
           set -e  # 恢复错误退出模式
