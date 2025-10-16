@@ -71,7 +71,7 @@ docker run -d --name dongman \
 这个才是资源共建平台的核心，点击右上角的'提交资源'，用户可以随意提交自己喜欢的动漫资源，如果网站还不存该美漫时，会是一个新建资源的表单，需要填写中文名、英文名、类型、简介等基础信息。提交后，要等管理员在后台审批完才会在首页显示
 
 ### 提交-新建资源
-
+勾选了小姐姐搜刮器，默认只从小姐姐搜刮器中搜索元素。如果同时存在正常资源和小姐姐，应该只在小姐姐资源中启用这个搜刮器
 支持从TMDB搜索、预览、一键导入资源
 ![image|690x397](https://raw.githubusercontent.com/fishforks/imgs/refs/heads/main/gcm/28.gif)
 
@@ -101,7 +101,8 @@ docker run -d --name dongman \
 ![详情编辑|690x391](https://raw.githubusercontent.com/fishforks/imgs/refs/heads/main/gcm/18.gif)
 
 
-
+## 新增点播源汇总
+管理员后台可以设置点播源汇总，汇总的json点播源可以被影视仓、TVBOX等各种空壳应用加载
 
 
 
