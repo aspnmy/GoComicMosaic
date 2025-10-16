@@ -1,0 +1,41 @@
+# 多阶段构建Dockerfile - 用于GoComicMosaic前端
+# 第一阶段：构建前端应用
+FROM node:18-alpine AS builder
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制package.json和package-lock.json
+COPY package*.json ./
+
+# 可选：设置npm镜像源加速依赖安装
+# ARG NPM_REGISTRY=https://registry.npm.taobao.org
+# RUN npm config set registry $NPM_REGISTRY
+
+# 安装依赖
+RUN npm install --legacy-peer-deps
+
+# 复制项目文件
+COPY . .
+
+# 执行构建脚本
+RUN ./build-frontend.sh
+
+# 第二阶段：创建运行环境
+FROM nginx:alpine-perl
+
+# 设置时区
+ENV TZ=Asia/Shanghai
+RUN apk update && apk add --no-cache tzdata && rm -rf /var/cache/apk/*
+
+# 复制构建产物到Nginx目录
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# 复制自定义Nginx配置（如果需要）
+# COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# 暴露端口
+EXPOSE 80
+
+# 启动Nginx
+CMD ["nginx", "-g", "daemon off;"]

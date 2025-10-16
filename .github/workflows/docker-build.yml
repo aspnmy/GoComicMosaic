@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: 自动构建并推送容器镜像
 
 on:
   push:
@@ -9,24 +9,30 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write  # 需要write权限来创建tag
       packages: write
 
     steps:
-      - name: Checkout repository
+      # 检出代码仓库
+      - name: 检出代码仓库
         uses: actions/checkout@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          fetch-depth: 0  # 检出完整历史以获取准确的标签信息
 
-      # 确定镜像标签
-      - name: Extract metadata (tags, labels) for Docker
+      # 安装buildah
+      - name: 安装buildah
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y buildah
+          buildah --version
+
+      # 登录Docker Hub
+      - name: 登录Docker Hub
+        run: |
+          echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | buildah login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin docker.io
+
+      # 提取镜像元数据（标签和标签）
+      - name: 提取容器元数据
         id: meta
         uses: docker/metadata-action@v4
         with:
@@ -38,25 +44,121 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix={{branch}}-
             latest
+          labels: |
+            org.opencontainers.image.description=GoComicMosaic开源影视资源共建平台
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
+            org.opencontainers.image.version=${{ github.sha }}
 
-      # 构建并推送Docker镜像
-      - name: Build and push
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          # 启用缓存以加速构建
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          # 构建参数
-          build-args: |
-            VERSION=${{ github.sha }}
-
-      # 通知构建完成
-      - name: Notify build completion
-        if: success()
+      # 构建并推送容器镜像
+      - name: 使用buildah构建镜像
         run: |
-          echo "✅ Docker image built and pushed successfully!"
-          echo "🔍 Available tags: ${{ steps.meta.outputs.tags }}"
+          # 确保构建脚本有执行权限
+          chmod +x ./build-with-buildah.sh
+          
+          # 运行buildah构建脚本
+          ./build-with-buildah.sh
+          
+          # 为构建的镜像添加所有标签
+          IMAGE_NAME="gocomicmosaic:latest"
+          for tag in ${{ steps.meta.outputs.tags }}; do
+            # 从完整标签中提取仓库名和标签名
+            repo=$(echo $tag | cut -d':' -f1)
+            tag_name=$(echo $tag | cut -d':' -f2)
+            echo "添加标签: $repo:$tag_name"
+            buildah tag $IMAGE_NAME $repo:$tag_name
+          done
+
+      # 推送镜像
+      - name: 推送镜像到Docker Hub
+        run: |
+          for tag in ${{ steps.meta.outputs.tags }}; do
+            echo "推送: $tag"
+            buildah push $tag
+          done
+
+      # 更新版本号、创建tag和GitHub Release
+      - name: 更新版本号、创建tag和GitHub Release
+        if: success() && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 读取当前版本号
+          CURRENT_VERSION=$(cat version.txt)
+          echo "当前版本: $CURRENT_VERSION"
+          
+          # 增加补丁版本号（例如从1.0.0到1.0.1）
+          NEW_VERSION=$(echo $CURRENT_VERSION | awk -F. '{$3=$3+1; OFS="."; print $1,$2,$3}')
+          echo "新版本: $NEW_VERSION"
+          
+          # 更新version.txt文件
+          echo $NEW_VERSION > version.txt
+          echo "✅ 版本号已更新到 $NEW_VERSION"
+          
+          # 配置git用户
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+          
+          # 添加version.txt文件
+          git add version.txt
+          
+          # 提交更改
+          git commit -m "自动更新版本号到 $NEW_VERSION"
+          
+          # 推送更改
+          git push origin main
+          
+          # 创建新的tag
+          TAG_NAME="v$NEW_VERSION"
+          git tag $TAG_NAME
+          git push origin $TAG_NAME
+          echo "✅ 创建并推送tag: $TAG_NAME"
+          
+          # 获取提交日志，用于Release说明
+          CHANGELOG=$(git log --pretty=format:"- %s" $(git describe --tags --abbrev=0)..HEAD)
+          
+          # 安装gh命令行工具（GitHub官方CLI）
+          echo "安装GitHub CLI..."
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y gh
+          
+          # 创建GitHub Release
+          echo "创建GitHub Release: $TAG_NAME"
+          echo "发布说明内容:\n$CHANGELOG"
+          
+          # 使用gh命令创建Release
+          echo "$GITHUB_TOKEN" | gh auth login --with-token
+          gh release create "$TAG_NAME" \
+            --title "GoComicMosaic v$NEW_VERSION" \
+            --notes "## 版本 $NEW_VERSION\n\n### 更新内容\n$CHANGELOG\n\n### 镜像信息\n- Docker Hub: ${{ github.repository }}:$TAG_NAME\n- 构建提交: ${{ github.sha }}" \
+            --prerelease=false
+          
+          echo "✅ GitHub Release 创建成功: https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+
+      # 构建完成后的通知
+      - name: 构建完成通知
+        if: success()
+        run:
+          echo "✅ 容器镜像构建并推送成功！"
+          echo "🔍 可用标签: ${{ steps.meta.outputs.tags }}"
+          echo "📦 镜像大小优化: 使用buildah构建减小体积"
+          echo "📝 构建信息: 提交SHA - ${{ github.sha }}"
+          echo "⚡ 优势: 与Docker相比，buildah生成的镜像体积更小，更适合生产环境部署"
+          if [ "${{ github.ref }}" = 'refs/heads/main' ]; then
+            NEW_VERSION=$(cat version.txt)
+            echo "🚀 版本号已更新到 $NEW_VERSION 并创建了相应tag"
+          fi
+
+      # 构建失败时的故障排除信息
+      - name: 构建失败故障排除
+        if: failure()
+        run: |
+          echo "❌ 容器镜像构建失败！"
+          echo "💡 故障排除提示："
+          echo "1. 确保Docker Hub凭证正确设置在GitHub Secrets中"
+          echo "2. 检查build-with-buildah.sh脚本语法是否正确"
+          echo "3. 验证构建环境网络连接是否正常"
+          echo "4. 查看完整日志以获取详细错误信息"
+          echo "5. 确保buildah工具正确安装并具有足够权限"

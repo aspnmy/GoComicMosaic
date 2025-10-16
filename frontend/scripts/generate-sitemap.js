@@ -121,14 +121,21 @@ const fetchResourceBatch = async (skip, limit, sort_by = 'likes_count', sort_ord
       return [];
     }
     
-    // 根据实际响应结构调整
-    const resources = response.data.resources || response.data.data || response.data || [];
-    console.log(`获取到资源(skip=${skip}): ${resources.length}条`);
+    // 根据实际响应结构调整，并添加null检查
+    const responseData = response.data;
+    let resources = [];
     
-    // 如果响应中包含总数信息，添加到返回的数组中
-    if (response.data.total !== undefined) {
-      resources.total = response.data.total;
-      console.log(`API返回总数信息: total=${resources.total}`);
+    if (responseData) {
+      resources = responseData.resources || responseData.data || responseData || [];
+      console.log(`获取到资源(skip=${skip}): ${resources.length}条`);
+      
+      // 如果响应中包含总数信息，添加到返回的数组中
+      if (responseData.total !== undefined) {
+        resources.total = responseData.total;
+        console.log(`API返回总数信息: total=${resources.total}`);
+      }
+    } else {
+      console.log(`获取到空响应(skip=${skip})`);
     }
     
     return resources;

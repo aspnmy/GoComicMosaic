@@ -1,0 +1,105 @@
+# GoComicMosaic 完整多阶段构建Dockerfile
+# 参考原始Dockerfile进行优化，确保全面完善
+
+# 第一阶段：构建前端应用
+FROM node:18-alpine AS frontend-builder
+
+# 设置工作目录
+WORKDIR /app/frontend
+
+# 复制前端项目文件
+COPY frontend/package*.json ./
+
+# 安装依赖
+RUN npm install --legacy-peer-deps
+
+# 复制前端项目文件
+COPY frontend/ .
+
+# 直接执行前端构建命令
+RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry $NPM_REGISTRY; fi && \
+    npm run build
+
+# 第二阶段：构建Go后端
+FROM golang:1.22-alpine AS backend-builder
+
+# 安装构建依赖（包括CGO所需的工具链，SQLite需要）
+RUN apk update && \
+    apk add --no-cache gcc musl-dev sqlite-dev git && \
+    rm -rf /var/cache/apk/*
+
+# 设置工作目录
+WORKDIR /app/gobackend
+
+# 设置CGO_ENABLED=1以支持SQLite
+ENV CGO_ENABLED=1
+
+# 复制Go模块文件
+COPY gobackend/go.mod gobackend/go.sum ./
+
+# 下载Go依赖
+RUN go mod download
+
+# 复制后端源代码
+COPY gobackend/ .
+
+# 直接在Dockerfile中执行构建命令（只构建主应用）
+RUN mkdir -p ./output && \
+    export CGO_ENABLED=1 && \
+    export GOOS=linux && \
+    go mod tidy && \
+    go build -ldflags='-s -w' -o ./output/app ./cmd/api
+
+# 复制WebP工具（如果构建了）
+RUN if [ -f "./output/app_webp" ]; then cp ./output/app_webp ./output/webp_converter; fi
+
+# 第三阶段：创建最终镜像
+FROM nginx:alpine-perl
+
+# 设置工作目录
+WORKDIR /app
+
+# 安装必要的运行时依赖 - 与原始Dockerfile保持一致
+RUN apk update && \
+    apk add --no-cache ca-certificates tzdata sqlite-libs && \
+    rm -rf /var/cache/apk/*
+
+# 设置时区
+ENV TZ=Asia/Shanghai
+
+# 设置默认环境变量 - 保持与原始Dockerfile一致
+ENV DB_PATH=/app/data/database.db
+ENV ASSETS_PATH=/app/data/assets
+ENV DOMAIN=localhost
+
+# 从前端构建阶段复制构建产物
+COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
+
+# 从后端构建阶段复制二进制文件
+COPY --from=backend-builder /app/gobackend/output/app /app/gobackend/
+
+# 复制WebP转换工具（如果存在）
+# 使用多阶段构建的条件复制技巧
+COPY --from=backend-builder --chown=nginx:nginx \
+    /app/gobackend/output/webp_converter* \
+    /app/gobackend/
+
+# 复制启动脚本 - 与原始Dockerfile保持一致
+COPY start.sh /app/
+RUN chmod +x /app/start.sh
+
+# 创建必要的目录 - 与原始Dockerfile保持一致并扩展
+RUN mkdir -p /app/data \
+    /app/data/imgs \
+    /app/data/uploads \
+    /app/data/nginx \
+    /app/data/ssl
+
+# 暴露端口 - 与原始Dockerfile保持一致
+EXPOSE 80 443
+
+# 设置卷挂载点 - 与原始Dockerfile保持一致
+VOLUME ["/app/data"]
+
+# 设置启动命令 - 与原始Dockerfile保持一致
+CMD ["/app/start.sh"]

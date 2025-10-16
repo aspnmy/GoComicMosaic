@@ -1,19 +1,170 @@
 # GoComicMosaic
 一款开源影视资源共建平台，不同用户可以自由提交资源信息(标题、类型、简介、图片、资源链接)，像马赛克一样，由多方贡献拼凑成完整资源。 集成网盘搜索、分季分集剧集信息查看、在线点播(支持采集解析和自定义爬虫)等功能
 
+## 项目结构
+
+```
+GoComicMosaic/
+├── frontend/            # 前端应用（Vue.js）
+│   ├── build-frontend.sh    # 前端构建脚本
+│   └── Dockerfile.multistage # 前端多阶段构建Dockerfile
+├── gobackend/           # 后端服务（Go语言）
+│   ├── build-backend.sh     # 后端构建脚本
+│   └── Dockerfile.multistage # 后端多阶段构建Dockerfile
+├── Dockerfile.full      # 完整应用多阶段构建Dockerfile
+├── build-with-buildah.sh # Buildah构建脚本
+├── start.sh             # 应用启动脚本
+└── .gitignore           # Git忽略文件配置
+```
+
 
 如果喜欢，点个star  
 
 ---
 
-## Docker一键部署
+## 构建说明
 
+### 使用Docker构建
+
+#### 完整应用构建
+
+```bash
+docker build -t gocomicmosaic -f Dockerfile.full .
 ```
+
+#### 单独构建前端
+
+```bash
+cd frontend
+docker build -t gocomicmosaic-frontend -f Dockerfile.multistage .
+```
+
+#### 单独构建后端
+
+```bash
+cd gobackend
+docker build -t gocomicmosaic-backend -f Dockerfile.multistage .
+```
+
+### 使用Buildah构建
+
+```bash
+./build-with-buildah.sh
+```
+
+## 使用Docker Compose部署
+
+项目提供了多种Docker Compose配置文件，以适应不同的部署需求：
+
+### 1. 标准构建部署（推荐）
+
+使用项目中的源代码进行构建并部署：
+
+```bash
+docker-compose up -d
+```
+
+这将使用 `docker-compose.yml` 和 `docker-compose.override.yml`（开发环境）文件。在生产环境中，您可以忽略override文件：
+
+```bash
+docker-compose -f docker-compose.yml up -d
+```
+
+### 2. 使用预构建镜像快速部署
+
+如果您不想构建镜像，也可以使用预构建的镜像直接部署：
+
+```bash
+docker-compose -f docker-compose-standalone.yml up -d
+```
+
+### 3. 自定义部署参数
+
+可以通过环境变量或修改docker-compose文件来自定义部署参数：
+
+```bash
+# 通过环境变量设置DOMAIN
+export DOMAIN=your-domain.com
+docker-compose up -d
+```
+
+## Docker一键部署（传统方式）
+
+如果您仍然想使用传统的docker run命令：
+
+```bash
 docker run -d --name dongman \
   -p 80:80 -p 443:443 \
   -v /your/local/path:/app/data \
   -e DOMAIN=your-domain.com \
   2011820123/gcm:latest
+```
+
+## 运行应用
+
+### 使用Docker运行自定义构建镜像
+
+```bash
+docker run -d \
+  -p 80:80 \
+  -p 443:443 \
+  -v ./data:/app/data \
+  --name gocomicmosaic \
+  gocomicmosaic:latest
+```
+
+### 使用Podman运行
+
+```bash
+podman run -d \
+  -p 80:80 \
+  -p 443:443 \
+  -v ./data:/app/data \
+  --name gocomicmosaic \
+  gocomicmosaic:latest
+
+### 使用Docker Compose管理应用
+
+```bash
+# 启动应用
+docker-compose up -d
+
+# 查看应用日志
+docker-compose logs -f
+
+# 停止应用
+docker-compose down
+
+# 重新构建并启动
+docker-compose up -d --build
+
+# 查看容器状态
+docker-compose ps
+```
+
+## 环境变量
+
+- `DB_PATH`: 数据库文件路径（默认：`/app/data/database.db`）
+- `ASSETS_PATH`: 资源文件路径（默认：`/app/data/assets`）
+- `DOMAIN`: 应用域名（默认：`localhost`）
+- `TZ`: 时区设置（默认：`Asia/Shanghai`）
+
+## 开发说明
+
+### 前端开发
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 后端开发
+
+```bash
+cd gobackend
+go mod tidy
+go run ./cmd/api
 ```
 
 如需启用HTTPS，需要在挂载目录中放置SSL证书：

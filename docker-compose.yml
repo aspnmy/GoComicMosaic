@@ -1,0 +1,53 @@
+version: '3.8'
+
+# 定义服务
+services:
+  # GoComicMosaic主应用服务
+  gocomicmosaic:
+    # 使用项目中的Dockerfile.full进行构建
+    build:
+      context: .
+      dockerfile: Dockerfile.full
+    # 容器名称
+    container_name: gocomicmosaic
+    # 重启策略：除非手动停止，否则总是重启
+    restart: unless-stopped
+    # 端口映射
+    ports:
+      - "80:80"     # HTTP端口
+      - "443:443"   # HTTPS端口
+    # 环境变量配置
+    environment:
+      - DOMAIN=localhost  # 应用域名，可根据实际情况修改
+      - TZ=Asia/Shanghai  # 时区设置
+      - DB_PATH=/app/data/database.db  # 数据库文件路径
+      - ASSETS_PATH=/app/data/assets  # 资源文件路径
+    # 数据卷挂载
+    volumes:
+      # 挂载数据目录，持久化存储数据库和上传的文件
+      - gocomicmosaic-data:/app/data
+    # 健康检查配置
+    healthcheck:
+      test: ["CMD", "curl", "-s", "http://localhost"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# 定义数据卷
+volumes:
+  # 命名卷用于数据持久化
+  gocomicmosaic-data:
+    # 使用本地驱动
+    driver: local
+    # 可选择性地指定本地路径
+    # driver_opts:
+    #   o: bind
+    #   type: none
+    #   device: ./data
+
+# 网络配置
+networks:
+  default:
+    # 使用默认网络
+    name: gocomicmosaic-network

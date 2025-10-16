@@ -1,0 +1,38 @@
+version: '3.8'
+
+# 开发环境覆盖配置
+# 此文件会自动与docker-compose.yml合并，用于开发环境配置
+services:
+  gocomicmosaic:
+    # 开发环境下使用开发构建
+    build:
+      context: .
+      dockerfile: Dockerfile.full
+      args:
+        - NPM_REGISTRY=https://registry.npmmirror.com  # 使用国内镜像加速依赖安装
+    # 环境变量配置 - 开发环境特定
+    environment:
+      - DOMAIN=localhost
+      - TZ=Asia/Shanghai
+      - GIN_MODE=debug  # 设置为调试模式
+    # 开发环境下挂载代码目录，实现热重载
+    volumes:
+      # 挂载数据目录
+      - ./data:/app/data:rw
+      # 可选：挂载前端源代码用于开发
+      # - ./frontend:/app/frontend:ro
+      # 可选：挂载后端源代码用于开发
+      # - ./gobackend:/app/gobackend:ro
+    # 开发环境下添加更多日志输出
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # 开发环境下健康检查间隔更短
+    healthcheck:
+      test: ["CMD", "curl", "-s", "http://localhost"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
