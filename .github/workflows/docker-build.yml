@@ -36,8 +36,18 @@ jobs:
           
           # 登录GitHub Container Registry
           echo "正在登录GitHub Container Registry..."
+          set +e  # 允许登录失败但继续执行
           echo "${{ secrets.GHCR_PUSH_TOKEN }}" | buildah login -u "${{ secrets.GHCR_NAME }}" --password-stdin ghcr.io
-          echo "✅ GitHub Container Registry登录成功"
+          GHCR_LOGIN_STATUS=$?
+          set -e
+          
+          if [ $GHCR_LOGIN_STATUS -eq 0 ]; then
+            echo "✅ GitHub Container Registry登录成功"
+            echo "GHCR_LOGIN_SUCCESS=true" >> $GITHUB_ENV
+          else
+            echo "❌ GitHub Container Registry登录失败，错误码: $GHCR_LOGIN_STATUS"
+            echo "GHCR_LOGIN_SUCCESS=false" >> $GITHUB_ENV
+          fi
           
           # 登录git.t2be.cn
           echo "正在登录git.t2be.cn..."
@@ -134,7 +144,21 @@ jobs:
           
           # 推送镜像到各个仓库
           push_image "${DOCKER_HUB_REPO}" "$VERSION_TAG" "Docker Hub"
-          push_image "${GHCR_REPO}" "$VERSION_TAG" "GitHub Container Registry"
+          
+          # 检查GHCR的登录状态
+          if [ "$GHCR_LOGIN_SUCCESS" != "true" ]; then
+            echo "⚠️ GitHub Container Registry登录失败，跳过推送"
+          else
+            # 为GHCR推送操作添加超时保护
+            timeout 30s push_image "${GHCR_REPO}" "$VERSION_TAG" "GitHub Container Registry"
+            PUSH_EXIT_CODE=$?
+            
+            if [ $PUSH_EXIT_CODE -eq 124 ]; then
+              echo "⏰ GitHub Container Registry镜像推送超时（超过30秒），已跳过"
+            elif [ $PUSH_EXIT_CODE -ne 0 ] && [ $PUSH_EXIT_CODE -ne 124 ]; then
+              echo "❌ GitHub Container Registry镜像推送失败，错误码: $PUSH_EXIT_CODE"
+            fi
+          fi
           
           # 检查git.t2be.cn的登录状态
           if [ "$GIT2BE_LOGIN_SUCCESS" != "true" ]; then
