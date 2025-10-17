@@ -213,11 +213,23 @@ jobs:
           
           # 为Nginx版本镜像添加标签
           echo "为Nginx版本镜像添加标签: $DOCKER_HUB_REPO:$NGINX_IMAGE_TAG"
-          # 检查镜像是否带有localhost前缀
+          # 使用更可靠的方式检测实际的镜像名称
           ACTUAL_NGINX_IMAGE_NAME=$NGINX_IMAGE_NAME
-          if buildah images | grep -q "localhost/${NGINX_IMAGE_NAME}"; then
+          # 先获取所有镜像列表
+          ALL_IMAGES=$(buildah images)
+          echo "当前所有镜像列表:"
+          echo "$ALL_IMAGES"
+          
+          # 更可靠的localhost前缀检测
+          if echo "$ALL_IMAGES" | grep -E "(^|[[:space:]])localhost/${NGINX_IMAGE_NAME}($|[[:space:]])" -q; then
             ACTUAL_NGINX_IMAGE_NAME="localhost/${NGINX_IMAGE_NAME}"
             echo "⚠️  使用带有localhost前缀的镜像名称: $ACTUAL_NGINX_IMAGE_NAME"
+          else
+            # 尝试通过正则表达式精确匹配
+            if echo "$ALL_IMAGES" | grep -E "(^|[[:space:]])localhost/$NGINX_REPO[[:space:]]+$NGINX_TAG($|[[:space:]])" -q; then
+              ACTUAL_NGINX_IMAGE_NAME="localhost/$NGINX_REPO:$NGINX_TAG"
+              echo "⚠️  使用精确匹配的localhost前缀镜像: $ACTUAL_NGINX_IMAGE_NAME"
+            fi
           fi
           
           # 添加错误检查
@@ -237,11 +249,21 @@ jobs:
           
           # 为Caddy版本镜像添加标签
           echo "为Caddy版本镜像添加标签: $DOCKER_HUB_REPO:$CADDY_IMAGE_TAG"
-          # 检查镜像是否带有localhost前缀
+          # 使用更可靠的方式检测实际的镜像名称
           ACTUAL_CADDY_IMAGE_NAME=$CADDY_IMAGE_NAME
-          if buildah images | grep -q "localhost/${CADDY_IMAGE_NAME}"; then
+          # 确保有最新的镜像列表
+          ALL_IMAGES=$(buildah images)
+          
+          # 更可靠的localhost前缀检测
+          if echo "$ALL_IMAGES" | grep -E "(^|[[:space:]])localhost/${CADDY_IMAGE_NAME}($|[[:space:]])" -q; then
             ACTUAL_CADDY_IMAGE_NAME="localhost/${CADDY_IMAGE_NAME}"
             echo "⚠️  使用带有localhost前缀的镜像名称: $ACTUAL_CADDY_IMAGE_NAME"
+          else
+            # 尝试通过正则表达式精确匹配
+            if echo "$ALL_IMAGES" | grep -E "(^|[[:space:]])localhost/$CADDY_REPO[[:space:]]+$CADDY_TAG($|[[:space:]])" -q; then
+              ACTUAL_CADDY_IMAGE_NAME="localhost/$CADDY_REPO:$CADDY_TAG"
+              echo "⚠️  使用精确匹配的localhost前缀镜像: $ACTUAL_CADDY_IMAGE_NAME"
+            fi
           fi
           
           buildah tag $ACTUAL_CADDY_IMAGE_NAME $DOCKER_HUB_REPO:$CADDY_IMAGE_TAG
